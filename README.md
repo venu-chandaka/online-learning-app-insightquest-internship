@@ -28,7 +28,3 @@ This project is part of the InsightQuest internship where I developed a foundati
 - Configured with NodeMailer using environment variables for email service credentials.
 
 ---
-
-## Setup Instructions
-
-1. Clone the repository:
