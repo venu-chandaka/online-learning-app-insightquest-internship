@@ -4,7 +4,8 @@ import LoginPage from "./pages/Login.jsx";
 import RegisterPage from "./pages/Register.jsx";
 import HomePage from "./pages/Home.jsx";
 import StudentDashboard from "./pages/StudentDashboard.jsx";
-
+import MentorDashboard from "./pages/MentorDashboard.jsx";
+import CourseView from "./pages/CourseView";
 function App() {
   return (
     <AuthProvider>
@@ -14,6 +15,8 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/" element={<HomePage />} />
           <Route path="/stdashboard" element={<StudentDashboard />} />
+          <Route path="/course/:id" element={<CourseView />} />
+          <Route path="/mentordashboard" element={<MentorDashboard />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

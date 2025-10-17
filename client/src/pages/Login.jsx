@@ -23,7 +23,12 @@ export default function LoginPage() {
       // optional: store user data if server returns it
       alert("Login successful!");
       if (data.user) localStorage.setItem('user', JSON.stringify(data.user));
-      navigate('/stdashboard');
+      if(role === "student"){
+        navigate('/stdashboard');
+      }
+      else{
+        navigate('/mentordashboard');
+      } 
     } else {
       setError(data?.message || 'Login failed');
     }
@@ -41,7 +46,6 @@ export default function LoginPage() {
           <button className={role === "student" ? "selected" : ""} onClick={() => setRole("student")}>Student</button>
           <button className={role === "mentor" ? "selected" : ""} onClick={() => setRole("mentor")}>Mentor</button>
         </div>
-
         <h2 className="login-title">{role.charAt(0).toUpperCase() + role.slice(1)} Login</h2>
 
         <form className="login-form" onSubmit={handleLogin}>

@@ -1,0 +1,10 @@
+Relationships Summary
+
+| Model          | References                           |
+| -------------- | ------------------------------------ |
+| **Mentor**     | → Courses, Students                  |
+| **Student**    | → Courses, Lessons, Quizzes          |
+| **Course**     | → Mentor, Lessons, Students, Quizzes |
+| **Lesson**     | → Course                             |
+| **Enrollment** | → Student, Course                    |
+| **Quiz**       | → Course                             |
