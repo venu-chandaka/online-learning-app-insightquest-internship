@@ -50,6 +50,38 @@ This project is part of the InsightQuest internship where I developed a foundati
   - Improved error handling and toast notifications
 
 - Updated GitHub repo with latest code for frontend and backend.
+---
+
+## Week 3 Deliveries
+
+- Enhanced **Student Dashboard**:
+  - Live track of quiz scores for each enrolled course.
+  - Completion percentage (progress bar) for every course.
+  - Visual indicators for quiz/lesson pass and fail.
+  - Dashboard summary: total, completed, and ongoing courses, plus average quiz score.
+
+- **Quiz Experience** improvements:
+  - Quiz appears at the end of all course lessons.
+  - Interactive UI for quizzes with color feedback on answers.
+  - Pass/fail summary animation, confetti effect on pass.
+  - Auto-redirect to dashboard after successful completion and marking course as complete.
+
+- Backend and model enhancements:
+  - Student `quizResults` stored per course, with pass/fail status, score, and timestamp.
+  - Updated data API returns course stats and quiz scores for dashboard display.
+
+- UI/UX Enhancements:
+  - All dashboard panels and mobile/responsive layouts polished.
+  - Consistent dashboard, lesson, and quiz color palette.
+  - Message toasts and X-close on all feedback dialogs.
+
+- Updated repo with all new code, and thoroughly tested flows.
+
+**Next Steps:**
+- Release beta for mentor dashboard analytics and course publication tools.
+- Enable certificate of completion for finished courses.
+- Add push notifications for quiz and course updates to student dashboard.
+- Further refactor and optimize code components.
 
 **Next Steps:**
 
