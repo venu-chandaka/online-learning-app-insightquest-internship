@@ -78,12 +78,6 @@ This project is part of the InsightQuest internship where I developed a foundati
 - Updated repo with all new code, and thoroughly tested flows.
 
 **Next Steps:**
-- Release beta for mentor dashboard analytics and course publication tools.
-- Enable certificate of completion for finished courses.
-- Add push notifications for quiz and course updates to student dashboard.
-- Further refactor and optimize code components.
-
-**Next Steps:**
 
 - Enhance course progress tracking and completion rates.
 - Add comment and feedback features for courses.
