@@ -1,51 +1,60 @@
 // middleware/mentorAuth.js
 import jwt from "jsonwebtoken";
+import MentorModel from "../models/mntrModel.js";
 
 const mentorAuth = async (req, res, next) => {
-  // Get token from cookie, Authorization header, body, or query string
-  const tokenFromCookie = req.cookies && req.cookies.token;
-  const authHeader = req.headers && req.headers.authorization;
-  const tokenFromHeader =
-    authHeader && authHeader.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : null;
-  const token =
-    tokenFromCookie ||
-    tokenFromHeader ||
-    (req.body && req.body.token) ||
-    (req.query && req.query.token);
-
-  if (!token) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Not authorized. Login again." });
-  }
-
   try {
-    const tokenDecode = jwt.verify(token, process.env.JWT_SECRET);
+    // 🔹 Get token from cookie, Authorization header, body, or query
+    const token =
+      req.cookies?.token ||
+      (req.headers?.authorization?.startsWith("Bearer ")
+        ? req.headers.authorization.split(" ")[1]
+        : null) ||
+      req.body?.token ||
+      req.query?.token;
 
-    // Token is signed as { mentorId: ... } in login/register controller
-    const mentorId =
-      tokenDecode?.mentorId || tokenDecode?.id || tokenDecode?.userId;
+    console.log("🟢 [mentorAuth] Incoming request");
+    console.log("Token Extracted:", token);
 
-    if (!mentorId) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Not authorized. Login again." });
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Token missing. Please login again.",
+      });
     }
 
-    // Attach mentorId to request (body and direct property)
-    req.body = req.body || {};
-    req.body.mentorId = mentorId;
-    req.mentorId = mentorId;
+    // 🔹 Decode token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("✅ Decoded Token:", decoded);
 
+    // 🔹 Token must contain mentorId (created from login)
+    if (!decoded || !decoded.mentorId) {
+      console.log("❌ Invalid token payload structure:", decoded);
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid token structure." });
+    }
+
+    // 🔹 Fetch mentor from DB
+    const mentor = await MentorModel.findById(decoded.mentorId);
+    if (!mentor) {
+      console.log("❌ Mentor not found for ID:", decoded.mentorId);
+      return res
+        .status(404)
+        .json({ success: false, message: "Mentor not found." });
+    }
+
+    // Attach to request
+    req.mentor = mentor;
+    req.mentorId = mentor._id;
+
+    console.log("✅ Mentor Authenticated:", mentor.email);
     next();
   } catch (error) {
-    // Log JWT errors for server debugging
-    console.error("mentorAuth jwt error:", error.message);
+    console.error("🚨 [mentorAuth] Error:", error.message);
     return res
       .status(401)
-      .json({ success: false, message: "Not authorized. Login again." });
+      .json({ success: false, message: "Invalid or expired token." });
   }
 };
 

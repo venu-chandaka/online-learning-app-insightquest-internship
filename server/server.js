@@ -9,6 +9,7 @@ import mentorRouter from './routes/mentorRoutes.js';
 import mentorAuthRouter from './routes/mentorAuthRoutes.js';
 import courseRouter from "./routes/courseRoutes.js";
 import lessonRouter from "./routes/lessonRoutes.js";
+import quizRouter from "./routes/quizRoutes.js";
 const app = express();
 const port = process.env.PORT || 4000;
 connectDB();
@@ -26,6 +27,7 @@ app.use('/api/mentorauth', mentorAuthRouter);
 app.use('/api/student', stRouter);
 app.use("/api/course", courseRouter);
 app.use("/api/lesson", lessonRouter);
+app.use("/api/quiz", quizRouter);
 app.listen(port, () => {
     console.log(`Server is started on port: ${port}`);
 });

@@ -109,24 +109,26 @@ export const completeLesson = async (req, res) => {
 };
 
 // 🧩 Get student’s enrolled courses
+// ✅ /api/student/enrolled-courses
 export const getEnrolledCourses = async (req, res) => {
   try {
-    const stId = req.stId || req.body?.stId;
-    const student = await stModel.findById(stId).populate("enrolledCourses.courseId");
+    const student = await stModel.findById(req.stId)
+      .populate({
+        path: "enrolledCourses.courseId",
+        model: "Course",
+        select: "title description thumbnail lessons",
+      });
 
     if (!student)
       return res.status(404).json({ success: false, message: "Student not found" });
 
-    res.json({
-      success: true,
-      enrolledCourses: student.enrolledCourses.map((c) => ({
-        id: c.courseId._id,
-        title: c.courseId.title,
-        category: c.courseId.category,
-        progress: c.progress,
-      })),
-    });
+    const courses = student.enrolledCourses
+      .map((e) => e.courseId)
+      .filter(Boolean);
+
+    res.json({ success: true, courses });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+

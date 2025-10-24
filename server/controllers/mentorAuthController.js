@@ -3,6 +3,8 @@ import jwt from "jsonwebtoken";
 import MentorModel from "../models/mntrModel.js";
 import transporter from "../config/nodeMailer.js";
 
+// 🔹 Helper to create JWT
+// controllers/mentorController.js
 const createToken = (mentorId) =>
   jwt.sign({ mentorId }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
@@ -30,7 +32,7 @@ export const mentorRegister = async (req, res) => {
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -38,10 +40,10 @@ export const mentorRegister = async (req, res) => {
       from: process.env.SENDER_EMAIL,
       to: email,
       subject: "Welcome to InsightQuestMentor 🎓",
-      text: `Hi ${name},\n\nWelcome aboard as a mentor! We’re glad to have your expertise at InsightQuestLearner.\n\nBest,\nCh.Venu & Team`,
+      text: `Hi ${name},\n\nWelcome aboard as a mentor! We’re glad to have your expertise.\n\nBest,\nCh.Venu & Team`,
     });
 
-    res.json({ success: true });
+    res.json({ success: true, token, mentor });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
@@ -62,16 +64,25 @@ export const mentorLogin = async (req, res) => {
       return res.json({ success: false, message: "Invalid password" });
 
     const token = createToken(mentor._id);
+
+    // 🍪 Set cookie
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.json({ success: true });
+    console.log("🔹 Mentor Token Payload:", jwt.decode(token));
+
+    res.json({
+      success: true,
+      message: "Login successful",
+      token,
+      mentor,
+    });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -81,7 +92,7 @@ export const mentorLogout = (req, res) => {
     res.clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     });
     res.json({ success: true, message: "Logged out successfully" });
   } catch (error) {
@@ -89,7 +100,7 @@ export const mentorLogout = (req, res) => {
   }
 };
 
-// SEND VERIFY OTP
+// 🔹 SEND VERIFY OTP
 export const mentorSendVerifyOtp = async (req, res) => {
   try {
     const mentorId = req.mentorId || req.body?.mentorId;
@@ -112,14 +123,15 @@ export const mentorSendVerifyOtp = async (req, res) => {
 
     res.json({ success: true, message: "OTP sent to your email" });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// VERIFY ACCOUNT
+// 🔹 VERIFY ACCOUNT
 export const mentorVerifyAccount = async (req, res) => {
   const mentorId = req.mentorId || req.body?.mentorId;
   const { otp } = req.body;
+
   if (!mentorId || !otp)
     return res.json({ success: false, message: "All fields required" });
 
@@ -138,11 +150,11 @@ export const mentorVerifyAccount = async (req, res) => {
 
     res.json({ success: true, message: "Email verified successfully" });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// PASSWORD RESET FLOW (similar to student)
+// 🔹 RESET PASSWORD FLOW
 export const mentorSendResetOtp = async (req, res) => {
   const { email } = req.body;
   if (!email) return res.json({ success: false, message: "Email required" });
@@ -165,10 +177,11 @@ export const mentorSendResetOtp = async (req, res) => {
 
     res.json({ success: true, message: "Reset OTP sent to your email" });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
+// 🔹 RESET PASSWORD
 export const mentorResetPassword = async (req, res) => {
   const { email, otp, newPassword } = req.body;
   if (!email || !otp || !newPassword)
@@ -190,6 +203,6 @@ export const mentorResetPassword = async (req, res) => {
 
     res.json({ success: true, message: "Password reset successfully" });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };

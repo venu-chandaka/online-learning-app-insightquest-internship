@@ -1,347 +1,417 @@
-import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
-export default function MentorDashboard() {
-  const [mentor, setMentor] = useState(null);
-  const [courses, setCourses] = useState([]);
+export default function StudentDashboard() {
+  const [infoMessage, setInfoMessage] = useState("");
+  const [student, setStudent] = useState(null);
+  const [allCourses, setAllCourses] = useState([]);
+  const [myCourses, setMyCourses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newCourse, setNewCourse] = useState({ title: "", description: "" });
-  const [newLesson, setNewLesson] = useState({ title: "", type: "video", contentUrl: "" });
-  const [selectedCourse, setSelectedCourse] = useState("");
-  const [showAlert, setShowAlert] = useState(false); // 👈 Modal toggle
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const navigate = useNavigate();
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [studentRes, allCoursesRes, myCoursesRes] = await Promise.all([
+        axios.get("http://localhost:4000/api/student/get-data", {
+          withCredentials: true,
+        }),
+        axios.get("http://localhost:4000/api/course/all", {
+          withCredentials: true,
+        }),
+        axios.get("http://localhost:4000/api/student/enrolled-courses", {
+          withCredentials: true,
+        }),
+      ]);
+
+      setStudent(studentRes.data.stData || {});
+      setAllCourses(allCoursesRes.data.courses || []);
+      setMyCourses(myCoursesRes.data.courses || []);
+    } catch (err) {
+      setInfoMessage("⚠️ Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const mentorRes = await axios.get("http://localhost:4000/api/mentor/get-data", { withCredentials: true });
-        const courseRes = await axios.get("http://localhost:4000/api/course/mycources", { withCredentials: true });
-        const mentorObj = mentorRes.data.mentorData || mentorRes.data.mentor || {};
-        setMentor(mentorObj);
-        setCourses(courseRes.data.courses || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
 
+  // 🔹 Fix enrollment check
+  const isEnrolled = (courseId) =>
+    myCourses.some((c) => String(c._id) === String(courseId));
+
+  // 🔹 Logout
   const handleLogout = async () => {
     try {
-      await axios.post("http://localhost:4000/api/mentor/logout", {}, { withCredentials: true });
-      window.location.href = "/mentor-login";
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleCreateCourse = async () => {
-    if (!mentor?.isAccountVerified) return setShowAlert(true);
-    if (!newCourse.title || !newCourse.description) return alert("Fill all fields");
-    try {
-      const res = await axios.post(
-        "http://localhost:4000/api/course/create",
-        { ...newCourse },
-        { withCredentials: true }
-      );
-      alert("Course created successfully!");
-      setCourses([...courses, res.data.course]);
-      setNewCourse({ title: "", description: "" });
-    } catch (err) {
-      alert("Failed to create course");
-    }
-  };
-
-  const handleAddLesson = async () => {
-    if (!mentor?.isAccountVerified) return setShowAlert(true);
-    if (!selectedCourse || !newLesson.title || !newLesson.contentUrl)
-      return alert("Fill all fields");
-    try {
       await axios.post(
-        "http://localhost:4000/api/lesson/add",
-        { courseId: selectedCourse, ...newLesson },
+        "http://localhost:4000/api/stauth/stlogout",
+        {},
         { withCredentials: true }
       );
-      alert("Lesson added!");
-      setNewLesson({ title: "", type: "video", contentUrl: "" });
-    } catch (err) {
-      alert("Failed to add lesson");
+      window.location.href = "/login";
+    } catch {
+      setInfoMessage("Logout failed.");
     }
   };
+
+  // 🔹 Enroll
+// 🔹 Enroll
+const enrollCourse = async (courseId) => {
+  if (!student?.isAccountVerified) {
+    setShowVerifyModal(true);
+      setInfoMessage("⚠️ Please verify your account before enrolling.");
+     // tiny delay ensures AnimatePresence renders toast above modal
+    return;
+  }
+
+  try {
+    const res = await axios.post(
+      "http://localhost:4000/api/student/enroll",
+      { courseId },
+      { withCredentials: true }
+    );
+
+    if (res.data?.success) {
+      setInfoMessage("✅ Enrolled successfully!");
+      await fetchData(); // Re-fetch to sync backend state
+    } else {
+      setInfoMessage(res.data?.message || "Enroll failed");
+    }
+  } catch (err) {
+    setInfoMessage(err?.response?.data?.message || "Enroll failed");
+  }
+};
+
   if (loading)
-    return <div style={{ color: "#fff", textAlign: "center", marginTop: "60px",  }}>Loading...</div>;
+    return <div style={styles.loadingWrap}>Loading...</div>;
 
   return (
-    <div style={styles.wrapper}>
-      {/* Navbar */}
-      <motion.nav style={styles.navbar} initial={{ y: -60 }} animate={{ y: 0 }} transition={{ duration: 0.8 }}>
-        <div style={styles.logoContainer}>
-          <img src="/isqlogo.svg" alt="logo" style={styles.logoImg} />
-          <span style={styles.logoText}>InsightQuestLearner</span>
+    <div style={styles.pageWrap}>
+      <aside style={styles.sidebar}>
+        <div style={styles.brand}>
+          <img src="/isqlogo.svg" alt="logo" style={styles.brandLogo} />
+          <div>
+            <div style={styles.brandTitle}>InsightQuestLearner</div>
+            <div style={styles.roleSmall}>Student</div>
+          </div>
         </div>
-        <div style={styles.navLinks}>
-          {["Dashboard", "Courses", "Profile"].map((nav) => (
-            <motion.a
-              key={nav}
-              href="#"
-              whileHover={{ scale: 1.1, color: "#a5b4fc" }}
-              style={styles.link}
+        <nav style={styles.sideNav}>
+          <a style={styles.activeSideLink}>Dashboard</a>
+          <a style={styles.sideLink}>My Courses</a>
+          <a style={styles.sideLink}>Available Courses</a>
+        </nav>
+        <div style={styles.sidebarFooter}>
+          <div style={styles.smallMuted}>Signed in as</div>
+          <div style={styles.sidebarName}>{student?.name || "Student"}</div>
+        </div>
+      </aside>
+
+      <main style={styles.main}>
+        <header style={styles.topbar}>
+          <div>
+            <div style={styles.welcomeTitle}>
+              Welcome back,{" "}
+              <span style={styles.mentorName}>{student?.name}</span>
+            </div>
+            <div style={styles.welcomeSub}>Keep learning and growing 🚀</div>
+          </div>
+          <div style={styles.topbarRight}>
+            {student?.isAccountVerified ? (
+              <div style={styles.verifiedBadge}>✔ Verified</div>
+            ) : (
+              <div style={styles.notVerifiedBadge}>Not Verified</div>
+            )}
+            <button
+              style={styles.topLogoutBtn}
+              onClick={handleLogout}
             >
-              {nav}
-            </motion.a>
-          ))}
-        </div>
-        <motion.button whileHover={{ scale: 1.05 }} onClick={handleLogout} style={styles.logoutBtn}>
-          Logout
-        </motion.button>
-      </motion.nav>
+              Logout
+            </button>
+          </div>
+        </header>
 
-      {/* Profile */}
-      <motion.section style={styles.profileCard} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <h2 style={styles.name}>{mentor?.name || "N/A"}</h2>
-        <p style={styles.email}>{mentor?.email}</p>
-        <p style={styles.detail}>Expertise: {mentor.expertise?.join(", ") || "N/A"}</p>
-        <p style={styles.detail}>Students: {mentor.students?.length || 0}</p>
+        {/* My Courses */}
+       {/* My Courses with Progress */}
+<section style={styles.section}>
+  <h3 style={styles.sectionTitle}>My Courses</h3>
+  {myCourses.length === 0 ? (
+    <div style={{ color: "#cbd5e1" }}>Not Enrolled in any courses.</div>
+  ) : (
+    <div style={styles.courseGrid}>
+      {myCourses.map((course) => {
+        const completed = student?.completedLessons?.filter(
+          (l) => l.courseId === course._id
+        ).length || 0;
+        const total = course.lessons?.length || 1;
+        const percent = Math.round((completed / total) * 100);
 
-        {mentor.isAccountVerified ? (
-          <div style={styles.verifiedBadge}>✔ Verified Mentor</div>
-        ) : (
-          <div style={styles.notVerifiedBadge}>❌ Not Verified</div>
-        )}
-      </motion.section>
+        return (
+          <div key={course._id} style={styles.courseCard}>
+            <div style={styles.courseHeader}>
+              <div>
+                <div style={styles.courseLabel}>COURSE</div>
+                <div style={styles.courseTitle}>{course.title}</div>
+              </div>
+              <img
+                src={course.thumbnail || "/default_course.png"}
+                alt=""
+                style={styles.courseIcon}
+              />
+            </div>
 
-      {/* Create Course */}
-      <section style={styles.section}>
-        <h3 style={styles.heading}>Create Course</h3>
-        <input
-          style={styles.input}
-          placeholder="Course Title"
-          value={newCourse.title}
-          onChange={(e) => setNewCourse({ ...newCourse, title: e.target.value })}
-        />
-        <textarea
-          style={styles.textarea}
-          placeholder="Course Description"
-          value={newCourse.description}
-          onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
-        />
-        <button style={styles.createBtn} onClick={handleCreateCourse}>
-          Create
-        </button>
-      </section>
+            <div style={styles.progressWrap}>
+              <div style={styles.progressBarBg}>
+                <div
+                  style={{
+                    ...styles.progressBarFill,
+                    width: `${percent}%`,
+                  }}
+                />
+              </div>
+              <div style={styles.progressText}>
+                {percent}% complete — {completed}/{total}
+              </div>
+            </div>
 
-      {/* Add Lesson */}
-      <section style={styles.section}>
-        <h3 style={styles.heading}>Add Lesson</h3>
-        <select style={styles.input} onChange={(e) => setSelectedCourse(e.target.value)} value={selectedCourse}>
-          <option value="">Select Course</option>
-          {courses.map((c) => (
-            <option key={c._id} value={c._id}>
-              {c.title}
-            </option>
-          ))}
-        </select>
-        <input
-          style={styles.input}
-          placeholder="Lesson Title"
-          value={newLesson.title}
-          onChange={(e) => setNewLesson({ ...newLesson, title: e.target.value })}
-        />
-        <select
-          style={styles.input}
-          value={newLesson.type}
-          onChange={(e) => setNewLesson({ ...newLesson, type: e.target.value })}
-        >
-          <option value="video">Video</option>
-          <option value="text">Text</option>
-        </select>
-        <input
-          style={styles.input}
-          placeholder="Lesson URL or Text"
-          value={newLesson.contentUrl}
-          onChange={(e) => setNewLesson({ ...newLesson, contentUrl: e.target.value })}
-        />
-        <button style={styles.createBtn} onClick={handleAddLesson}>
-          Add
-        </button>
-      </section>
-
-      {/* Courses */}
-      <motion.section style={styles.courseList} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <h3 style={styles.heading}>Your Courses</h3>
-        <div style={styles.grid}>
-          {courses.map((c) => (
-            <motion.div key={c._id} style={styles.courseCard} whileHover={{ scale: 1.03 }}>
-              <h4 style={styles.courseTitle}>{c.title}</h4>
-              <p style={styles.courseDesc}>{c.description}</p>
-              <p style={styles.courseStudents}>Students: {c.enrolledStudents?.length || 0}</p>
-            </motion.div>
-          ))}
-        </div>
-      </motion.section>
-
-      {/* 🧊 Verification Modal */}
-      <AnimatePresence>
-        {showAlert && (
-          <motion.div
-            style={styles.modalBackdrop}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              style={styles.modalBox}
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.3 }}
-            >
-              <h3 style={{ color: "#a5b4fc", marginBottom: "10px" }}>Account Verification Required</h3>
-              <p style={{ color: "#cbd5e1" }}>
-                You must verify your mentor account before creating or modifying courses.
-              </p>
-              <button onClick={() => setShowAlert(false)} style={styles.modalBtn}>
-                Okay
+            {percent === 100 ? (
+              <button style={styles.certBtn}>
+                ⬇ Download certificate
               </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            ) : (
+              <button
+                style={styles.viewBtn}
+                onClick={() =>
+                  navigate(`/student/course/${course._id}`)
+                }
+              >
+                Continue Course
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  )}
+</section>
+
+
+        {/* Available Courses */}
+        <section style={styles.section}>
+          <h3 style={styles.sectionTitle}>Available Courses</h3>
+          <div style={styles.coursesList}>
+            {allCourses.map((course) => {
+              const enrolled = isEnrolled(course._id);
+              return (
+                <div key={course._id} style={styles.courseRow}>
+                  <div style={styles.courseLeft}>
+                    <div style={styles.courseThumbWrap}>
+                      <img
+                        src={course.thumbnail || "/default_course.png"}
+                        alt={course.title}
+                        style={styles.courseThumb}
+                      />
+                    </div>
+                    <div>
+                      <div style={styles.courseTitle}>{course.title}</div>
+                      <div style={styles.courseMeta}>
+                        {course.description}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={styles.courseActions}>
+                    <button
+                      style={
+                        enrolled
+                          ? styles.primaryBtnDisabled
+                          : styles.primaryBtn
+                      }
+                      disabled={enrolled || !student?.isAccountVerified}
+                      onClick={() => enrollCourse(course._id)}
+                    >
+                      {enrolled ? "Enrolled" : "Enroll"}
+                    </button>
+                    <button
+                      style={styles.viewBtn}
+                      disabled={!enrolled}
+                      onClick={() =>
+                        enrolled && navigate(`/student/course/${course._id}`)
+                      }
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </main>
+
+      {/* ✅ Toast Message */}
+     {/* ✅ Info Toast - Fully Working Like Mentor Dashboard */}
+<AnimatePresence>
+  {infoMessage && (
+    <motion.div
+      key="toast"
+      style={styles.toast}
+      initial={{ y: 40, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 40, opacity: 0 }}
+      transition={{ duration: 0.25 }}
+    >
+      <div>{infoMessage}</div>
+      <button
+        onClick={() => setInfoMessage("")}
+        style={styles.toastClose}
+      >
+        ✕
+      </button>
+    </motion.div>
+  )}
+</AnimatePresence>
+
     </div>
   );
 }
 
 const styles = {
-  wrapper: {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,41,59,0.85))",
-    color: "#fff",
-    fontFamily: "'Poppins', sans-serif",
-    backdropFilter: "blur(15px)",
-    paddingBottom: "80px",
-  },
-  navbar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "20px 60px",
-    borderBottom: "1px solid rgba(255,255,255,0.15)",
-    background: "rgba(255,255,255,0.05)",
-    backdropFilter: "blur(15px)",
-  },
-  logoContainer: { display: "flex", alignItems: "center", gap: "10px" },
-  logoImg: { width: "40px" },
-  logoText: { fontSize: "1.5rem", color: "#a5b4fc", fontWeight: "700" },
-  navLinks: { display: "flex", gap: "25px" },
-  link: { color: "#cbd5e1", textDecoration: "none", fontWeight: "500" },
-  logoutBtn: {
-    background: "#6366f1",
-    border: "none",
-    color: "#fff",
-    padding: "8px 18px",
-    borderRadius: "10px",
-    cursor: "pointer",
-  },
-  profileCard: {
-    textAlign: "center",
-    background: "rgba(255,255,255,0.05)",
-    margin: "40px auto",
-    width: "70%",
-    padding: "25px",
-    borderRadius: "20px",
-  },
-  name: { fontSize: "1.8rem", fontWeight: "700" },
-  email: { color: "#94a3b8" },
-  detail: { color: "#a5b4fc", marginTop: "5px" },
-  verifiedBadge: {
-    marginTop: "10px",
-    background: "rgba(99,102,241,0.2)",
-    padding: "5px 15px",
-    borderRadius: "10px",
-    color: "#a5b4fc",
-  },
-  notVerifiedBadge: {
-    marginTop: "10px",
-    background: "rgba(239,68,68,0.15)",
-    padding: "5px 15px",
-    borderRadius: "10px",
-    color: "#f87171",
-  },
-  section: {
-    width: "70%",
-    margin: "30px auto",
-    background: "rgba(255,255,255,0.05)",
-    padding: "25px",
-    borderRadius: "15px",
-  },
-  heading: { color: "#a5b4fc", fontWeight: "600", marginBottom: "15px" },
-  input: {
-    width: "100%",
-    padding: "10px",
-    margin: "10px 0",
-    borderRadius: "8px",
-    border: "none",
-    outline: "none",
-  },
-  textarea: {
-    width: "100%",
-    padding: "10px",
-    borderRadius: "8px",
-    border: "none",
-    outline: "none",
-    minHeight: "80px",
-  },
-  createBtn: {
-    background: "#6366f1",
-    border: "none",
-    color: "#fff",
-    padding: "10px 20px",
-    borderRadius: "10px",
-    cursor: "pointer",
-  },
-  courseList: { width: "80%", margin: "50px auto" },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "20px",
-  },
-  courseCard: {
-    background: "rgba(255,255,255,0.05)",
-    padding: "20px",
-    borderRadius: "10px",
-  },
-  courseTitle: { fontWeight: "600", color: "#a5b4fc" },
-  courseDesc: { color: "#94a3b8", fontSize: "0.9rem", margin: "10px 0" },
-  courseStudents: { fontSize: "0.85rem", color: "#818cf8" },
-  modalBackdrop: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: "rgba(0,0,0,0.6)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
+  pageWrap: { display: "flex", minHeight: "100vh", background: "#0f172a", color: "#e6eef8", fontFamily: "Inter, sans-serif" },
+sidebar: {
+    width: 260,
+    padding: 24,
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02))",
+    borderRight: "1px solid rgba(255,255,255,0.04)",
     backdropFilter: "blur(10px)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 20,
   },
-  modalBox: {
-    background: "rgba(30,41,59,0.9)",
-    border: "1px solid rgba(129,140,248,0.3)",
-    padding: "30px 40px",
-    borderRadius: "15px",
-    textAlign: "center",
-    width: "400px",
-    boxShadow: "0 0 25px rgba(99,102,241,0.2)",
-  },
-  modalBtn: {
-    marginTop: "20px",
-    background: "#6366f1",
-    color: "#fff",
-    border: "none",
-    padding: "8px 20px",
-    borderRadius: "10px",
-    cursor: "pointer",
-  },
+  brand: { display: "flex", gap: 10, alignItems: "center" },
+  brandLogo: { width: 42 },
+  brandTitle: { fontWeight: 700, color: "#c7d2fe" },
+  roleSmall: { fontSize: 12, color: "#94a3b8" },
+  sideNav: { marginTop: 20, display: "flex", flexDirection: "column", gap: 8 },
+  activeSideLink: { background: "rgba(99,102,241,0.12)", color: "#e6e9ff", padding: "8px 10px", borderRadius: 6 },
+  sideLink: { padding: "8px 10px", color: "#cbd5e1" },
+sidebarFooter: {
+  fontSize: 13,
+  color: "#94a3b8",
+  marginTop: "auto",
+ // ✅ ensures it sticks to bottom even if content is less
+},
+
+  sidebarName: { marginTop: 4, fontWeight: 700 },
+  main: { flex: 1, padding: 24 },
+  topbar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  welcomeTitle: { fontSize: 20, fontWeight: 700 },
+  mentorName: { color: "#c7d2fe" },
+  welcomeSub: { fontSize: 13, color: "#9aa9c7" },
+  topbarRight: { display: "flex", alignItems: "center", gap: 10 },
+  verifiedBadge: { background: "rgba(99,102,241,0.15)", color: "#c7d2fe", padding: "6px 10px", borderRadius: 999 },
+  notVerifiedBadge: { background: "rgba(239,68,68,0.12)", color: "#fca5a5", padding: "6px 10px", borderRadius: 999 },
+  topLogoutBtn: { background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#cbd5e1", padding: "8px 12px", borderRadius: 8, cursor: "pointer" },
+  section: { background: "rgba(255,255,255,0.02)", padding: 18, borderRadius: 12, marginBottom: 16 },
+  sectionTitle: { fontSize: 16, fontWeight: 700, marginBottom: 12 },
+  coursesList: { display: "flex", flexDirection: "column", gap: 10 },
+  courseRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.03)" },
+  courseLeft: { display: "flex", gap: 12, alignItems: "center" },
+  courseThumbWrap: { width: 80, height: 60, borderRadius: 8, overflow: "hidden" },
+  courseThumb: { width: "100%", height: "100%", objectFit: "cover" },
+  courseTitle: { fontWeight: 700, fontSize: 15 },
+  courseMeta: { fontSize: 13, color: "#9aa9c7" },
+  courseActions: { display: "flex", gap: 8 },
+  primaryBtn: { background: "linear-gradient(90deg,#6366f1,#8b5cf6)", color: "#fff", padding: "8px 14px", border: "none", borderRadius: 8, cursor: "pointer" },
+  primaryBtnDisabled: { background: "rgba(255,255,255,0.03)", color: "#9aa9c7", padding: "8px 14px", borderRadius: 8 },
+  viewBtn: { background: "rgba(255,255,255,0.05)", color: "#cbd5e1", padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer" },
+   toast: {
+  position: "fixed",
+  right: 20,
+  bottom: 20,
+  background: "linear-gradient(90deg,#111827,#0b1220)",
+  color: "#e6eef8",
+  padding: "10px 14px",
+  borderRadius: 8,
+  display: "flex",
+  gap: 12,
+  alignItems: "center",
+  zIndex: 80,
+  border: "1px solid rgba(255,255,255,0.03)",
+},
+toastClose: {
+  background: "transparent",
+  color: "#cbd5e1",
+  border: "none",
+  cursor: "pointer",
+},
+courseGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gap: 16,
+},
+courseCard: {
+  background: "rgba(255,255,255,0.05)",
+  borderRadius: 12,
+  padding: 16,
+  border: "1px solid rgba(255,255,255,0.08)",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  transition: "0.3s",
+},
+courseHeader: {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 12,
+},
+courseLabel: {
+  color: "#60a5fa",
+  fontSize: 12,
+  fontWeight: 600,
+  letterSpacing: "0.05em",
+},
+courseIcon: {
+  width: 48,
+  height: 48,
+  borderRadius: 8,
+  background: "rgba(255,255,255,0.1)",
+  objectFit: "contain",
+},
+progressWrap: {
+  marginBottom: 12,
+},
+progressBarBg: {
+  height: 6,
+  background: "rgba(255,255,255,0.1)",
+  borderRadius: 4,
+  overflow: "hidden",
+  marginBottom: 6,
+},
+progressBarFill: {
+  height: "100%",
+  background: "#8b5cf6",
+  borderRadius: 4,
+  transition: "width 0.4s ease",
+},
+progressText: {
+  fontSize: 12,
+  color: "#9aa9c7",
+},
+certBtn: {
+  background: "rgba(255,255,255,0.08)",
+  color: "#cbd5e1",
+  padding: "8px 12px",
+  borderRadius: 8,
+  border: "1px solid rgba(255,255,255,0.1)",
+  cursor: "pointer",
+  fontWeight: 600,
+},
+
+  loadingWrap: { minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" },
 };

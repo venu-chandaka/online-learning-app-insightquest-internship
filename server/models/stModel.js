@@ -21,12 +21,12 @@ const studentSchema = new mongoose.Schema(
       },
     ],
 
-    completedLessons: [
-      {
-        lessonId: { type: mongoose.Schema.Types.ObjectId, ref: "Lesson" },
-        completedAt: { type: Date, default: Date.now },
-      },
-    ],
+    // completedLessons: [
+    //   {
+    //     lessonId: { type: mongoose.Schema.Types.ObjectId, ref: "Lesson" },
+    //     completedAt: { type: Date, default: Date.now },
+    //   },
+    // ],
 
     quizScores: [
       {
@@ -35,6 +35,14 @@ const studentSchema = new mongoose.Schema(
         attemptedAt: { type: Date, default: Date.now },
       },
     ],
+    completedLessons: [
+  {
+    courseId: { type: mongoose.Schema.Types.ObjectId, ref: "Course" },
+    lessonId: { type: mongoose.Schema.Types.ObjectId, ref: "Lesson" },
+    completedAt: { type: Date, default: Date.now }
+  }
+],
+
 
     profilePicture: { type: String, default: "" },
   },

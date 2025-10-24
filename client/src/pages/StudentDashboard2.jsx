@@ -1,325 +1,291 @@
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion"; // update the path as needed
+import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { stdetails} from "../api/studentDetails";
-import { filter } from "framer-motion/client";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+
 export default function StudentDashboard() {
-  const [student, setStudentName] = useState(null);
-  const [courses, setCourses] = useState([]);
+  const [infoMessage, setInfoMessage] = useState("");
+  const [student, setStudent] = useState(null);
+  const [allCourses, setAllCourses] = useState([]);
+  const [myCourses, setMyCourses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const navigate = useNavigate();
 
-  // Fetch all available courses
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [studentRes, courseRes] = await Promise.all([
-            stdetails(),
-          axios.get("http://localhost:4000/api/course/all", { withCredentials: true }),
-        ]);
-
-        if (studentRes.success && studentRes.stData?.name) {
-          setStudentName(studentRes.stData.name);
-        }
-
-        setCourses(courseRes.data.courses || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-  // Logout
-  const handleLogout = async () => {
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      await axios.post("http://localhost:4000/api/stauth/stlogout", {}, { withCredentials: true });
-      window.location.href = "/"; // redirect to login
+      const [studentRes, allCoursesRes, myCoursesRes] = await Promise.all([
+        axios.get("http://localhost:4000/api/student/get-data", { withCredentials: true }),
+        axios.get("http://localhost:4000/api/course/all", { withCredentials: true }),
+        axios.get("http://localhost:4000/api/student/enrolled-courses", { withCredentials: true }),
+      ]);
+
+      setStudent(studentRes.data.stData || {});
+      setAllCourses(allCoursesRes.data.courses || []);
+      setMyCourses(myCoursesRes.data.courses || []);
     } catch (err) {
-      console.error("Logout failed:", err);
+      setInfoMessage("⚠️ Failed to load data");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Enroll course
-  const handleEnroll = async (courseId) => {
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const isEnrolled = (courseId) => myCourses.some((c) => String(c._id) === String(courseId));
+
+  const handleLogout = async () => {
+    try {
+      await axios.post("http://localhost:4000/api/stauth/stlogout", {}, { withCredentials: true });
+      window.location.href = "/login";
+    } catch {
+      setInfoMessage("Logout failed.");
+    }
+  };
+
+  const enrollCourse = async (courseId) => {
+    if (!student?.isAccountVerified) {
+      setShowVerifyModal(true);
+      setInfoMessage("⚠️ Please verify your account before enrolling.");
+      return;
+    }
+
     try {
       const res = await axios.post(
         "http://localhost:4000/api/student/enroll",
         { courseId },
         { withCredentials: true }
       );
-      alert(res.data.message);
+
+      if (res.data?.success) {
+        setInfoMessage("✅ Enrolled successfully!");
+        await fetchData(); // sync state
+      } else {
+        setInfoMessage(res.data?.message || "Enroll failed");
+      }
     } catch (err) {
-      alert("Enrollment failed");
+      setInfoMessage(err?.response?.data?.message || "Enroll failed");
     }
   };
 
+  if (loading)
+    return <div style={styles.loadingWrap}>Loading...</div>;
+
   return (
-    <div style={styles.wrapper}>
-      {/* Navbar */}
-      <motion.nav
-        style={styles.navbar}
-        initial={{ y: -60, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.8 }}
-      >
-        <div style={styles.logoContainer}>
-          <img src="isqLogo.png" alt="Logo" style={styles.logoImg} />
-          <span style={styles.roleTag}>Student</span>
-        </div>
-
-        <div style={styles.navLinks}>
-          {["Home", "My Courses", "Profile"].map((item, index) => (
-            <motion.a
-              key={index}
-              href="#"
-              style={styles.navLink}
-              whileHover={{
-                scale: 1.1,
-                color: "#a5b4fc",
-                textShadow: "0px 0px 8px rgba(129,140,248,0.8)",
-              }}
-            >
-              {item}
-            </motion.a>
-          ))}
-        </div>
-
-        <motion.button
-          onClick={handleLogout}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          style={styles.logoutBtn}
-        >
-          Logout
-        </motion.button>
-      </motion.nav>
-
-      {/* Hero Section */}
-      <motion.section
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1 }}
-        style={styles.hero}
-      >
-        <h1 style={styles.heading}>
-          Welcome back, <span style={styles.highlight}>{student} 👋</span>
-        </h1>
-        <p style={styles.subText}>
-          Learn from top mentors and level up your skills. Explore our latest
-          courses and start your journey today.
-        </p>
-      </motion.section>
-
-      {/* Courses */}
-      <section style={styles.courseSection}>
-        <h2 style={styles.sectionTitle}>Available Courses</h2>
-        {loading ? (
-          <p style={styles.loading}>Loading courses...</p>
-        ) : courses.length === 0 ? (
-          <p style={styles.noCourses}>No courses available yet 😕</p>
-        ) : (
-          <div style={styles.courseGrid}>
-            {courses.map((course, index) => (
-              <motion.div
-                key={course._id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={{
-                  scale: 1.03,
-                  boxShadow: "0 0 15px rgba(129,140,248,0.3)",
-                }}
-                style={styles.courseCard}
-              >
-                <img
-                  src={course.thumbnail || "https://via.placeholder.com/300x200"}
-                  alt={course.title}
-                  style={styles.courseImg}
-                />
-                <h3 style={styles.courseTitle}>{course.title}</h3>
-                <p style={styles.courseDesc}>{course.description}</p>
-                <p style={styles.courseMentor}>
-                  By {course.instructor?.name || "Unknown Mentor"}
-                </p>
-                <div style={styles.btnRow}>
-                  <button
-                    onClick={() => handleEnroll(course._id)}
-                    style={styles.enrollBtn}
-                  >
-                    Enroll
-                  </button>
-                  <a href={`/watch/${course._id}`} style={styles.watchLink}>
-                    Watch →
-                  </a>
-                </div>
-              </motion.div>
-            ))}
+    <div style={styles.pageWrap}>
+      {/* Sidebar */}
+      <aside style={styles.sidebar}>
+        <div style={styles.brand}>
+          <img src="/isqlogo.svg" alt="logo" style={styles.brandLogo} />
+          <div>
+            <div style={styles.brandTitle}>InsightQuestLearner</div>
+            <div style={styles.roleSmall}>Student</div>
           </div>
-        )}
-      </section>
+        </div>
+        <nav style={styles.sideNav}>
+          <a style={styles.activeSideLink}>Dashboard</a>
+          <a style={styles.sideLink}>My Courses</a>
+          <a style={styles.sideLink}>Available Courses</a>
+        </nav>
+        <div style={styles.sidebarFooter}>
+          <div style={styles.smallMuted}>Signed in as</div>
+          <div style={styles.sidebarName}>{student?.name || "Student"}</div>
+        </div>
+      </aside>
 
-      <footer style={styles.footer}>
-        © {new Date().getFullYear()} InsightQuestLearner. All rights reserved.
-      </footer>
+      {/* Main Section */}
+      <main style={styles.main}>
+        <header style={styles.topbar}>
+          <div>
+            <div style={styles.welcomeTitle}>
+              Welcome back, <span style={styles.mentorName}>{student?.name}</span>
+            </div>
+            <div style={styles.welcomeSub}>Keep learning and growing 🚀</div>
+          </div>
+          <div style={styles.topbarRight}>
+            {student?.isAccountVerified ? (
+              <div style={styles.verifiedBadge}>✔ Verified</div>
+            ) : (
+              <div style={styles.notVerifiedBadge}>Not Verified</div>
+            )}
+            <button style={styles.topLogoutBtn} onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
+        </header>
+
+        {/* My Courses */}
+        <section style={styles.section}>
+          <h3 style={styles.sectionTitle}>My Courses</h3>
+          {myCourses.length === 0 ? (
+            <div style={{ color: "#cbd5e1" }}>Not Enrolled in any courses.</div>
+          ) : (
+            <div style={styles.coursesList}>
+              {myCourses.map((course) => (
+                <div key={course._id} style={styles.courseRow}>
+                  <div style={styles.courseLeft}>
+                    <div style={styles.courseThumbWrap}>
+                      <img
+                        src={course.thumbnail || "/default_course.png"}
+                        alt={course.title}
+                        style={styles.courseThumb}
+                      />
+                    </div>
+                    <div>
+                      <div style={styles.courseTitle}>{course.title}</div>
+                      <div style={styles.courseMeta}>{course.description}</div>
+                    </div>
+                  </div>
+                  <button
+                    style={styles.viewBtn}
+                    onClick={() => navigate(`/student/course/${course._id}`)}
+                  >
+                    View
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Available Courses */}
+        <section style={styles.section}>
+          <h3 style={styles.sectionTitle}>Available Courses</h3>
+          <div style={styles.coursesList}>
+            {allCourses.map((course) => {
+              const enrolled = isEnrolled(course._id);
+              return (
+                <div key={course._id} style={styles.courseRow}>
+                  <div style={styles.courseLeft}>
+                    <div style={styles.courseThumbWrap}>
+                      <img
+                        src={course.thumbnail || "/default_course.png"}
+                        alt={course.title}
+                        style={styles.courseThumb}
+                      />
+                    </div>
+                    <div>
+                      <div style={styles.courseTitle}>{course.title}</div>
+                      <div style={styles.courseMeta}>{course.description}</div>
+                    </div>
+                  </div>
+                  <div style={styles.courseActions}>
+                    <button
+                      style={enrolled ? styles.primaryBtnDisabled : styles.primaryBtn}
+                      disabled={enrolled}
+                      onClick={() => enrollCourse(course._id)}
+                    >
+                      {enrolled ? "Enrolled" : "Enroll"}
+                    </button>
+                    <button
+                      style={styles.viewBtn}
+                      disabled={!enrolled}
+                      onClick={() => navigate(`/student/course/${course._id}`)}
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </main>
+
+      {/* Glassy Verify Modal */}
+      <AnimatePresence>
+        {showVerifyModal && (
+          <motion.div
+            style={styles.modalBackdrop}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              style={styles.modalBox}
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <h3 style={{ color: "#a5b4fc", marginBottom: "10px" }}>Account Verification Required</h3>
+              <p style={{ color: "#cbd5e1" }}>
+                Please verify your account before enrolling in courses.
+              </p>
+              <button
+                onClick={() => setShowVerifyModal(false)}
+                style={styles.modalBtn}
+              >
+                Okay
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Message */}
+      <AnimatePresence>
+        {infoMessage && (
+          <motion.div
+            style={styles.toast}
+            initial={{ y: 40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 40, opacity: 0 }}
+          >
+            <div>{infoMessage}</div>
+            <button
+              onClick={() => setInfoMessage("")}
+              style={styles.toastClose}
+            >
+              ✕
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-// 🎨 Internal CSS Styles
 const styles = {
-  wrapper: {
-    minHeight: "100vh",
-    width: "100%",
-    position: "fixed",
-    top: 0,
-    left: 0,
-    overflowY: "auto",
-    background:
-      "radial-gradient(ellipse 80% 70% at 50% 30%,#4b5bf3b8 0%,#141629 100%)",
-    color: "#fff",
-  },
-  navbar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    width: "calc(100%)",
-    padding: "0px 0px 0px 0px",
-    background: "rgba(0,0,0,0.05)",
-    borderBottom: "1px solid rgba(255,255,255,0.15)",
-    backdropFilter: "blur(20px)",
-    borderRadius: "0 0 20px 20px",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
-  },
-  logoContainer: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-  },
-  logoImg: {
-    width: "200px",
-    filter: "drop-shadow(0 0 6px rgba(0,0,0,0.3))"
-  },
-  roleTag: {
-    background: "rgba(99,102,241,0.2)",
-    border: "1px solid rgba(129,140,248,0.4)",
-    color: "#a5b4fc",
-    padding: "3px 10px",
-    borderRadius: "10px",
-    fontSize: "0.8rem",
-    marginLeft: "8px",
-  },
-  navLinks: {
-    display: "flex",
-    gap: "25px",
-  },
-  navLink: {
-    textDecoration: "none",
-    color: "#cbd5e1",
-    fontWeight: "500",
-    fontSize: "1rem",
-    transition: "0.3s",
-  },
-  logoutBtn: {
-    background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
-    color: "#fff",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: "12px",
-    cursor: "pointer",
-    fontWeight: "600",
-    marginRight: "20px",
-    transition: "0.3s",
-  },
-  hero: {
-    textAlign: "center",
-    marginTop: "70px",
-  },
-  heading: {
-    fontSize: "2.8rem",
-    fontWeight: "700",
-    marginBottom: "15px",
-  },
-  highlight: {
-    color: "#818cf8",
-  },
-  subText: {
-    color: "#94a3b8",
-    fontSize: "1.1rem",
-    maxWidth: "650px",
-    margin: "0 auto",
-  },
-  courseSection: {
-    padding: "60px 80px",
-  },
-  sectionTitle: {
-    color: "#a5b4fc",
-    fontSize: "1.6rem",
-    marginBottom: "25px",
-  },
-  loading: { color: "#cbd5e1" },
-  noCourses: { color: "#cbd5e1" },
-  courseGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-    gap: "30px",
-  },
-  courseCard: {
-    background: "rgba(255, 255, 255, 0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: "15px",
-    padding: "20px",
-    backdropFilter: "blur(20px)",
-    transition: "all 0.3s ease",
-  },
-  courseImg: {
-    width: "100%",
-    height: "180px",
-    borderRadius: "10px",
-    objectFit: "cover",
-    marginBottom: "15px",
-  },
-  courseTitle: {
-    fontSize: "1.3rem",
-    fontWeight: "600",
-    marginBottom: "8px",
-  },
-  courseDesc: {
-    fontSize: "0.95rem",
-    color: "#94a3b8",
-    marginBottom: "10px",
-  },
-  courseMentor: {
-    color: "#818cf8",
-    fontSize: "0.9rem",
-    marginBottom: "15px",
-  },
-  btnRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  enrollBtn: {
-    background: "#6366f1",
-    border: "none",
-    color: "#fff",
-    padding: "8px 16px",
-    borderRadius: "10px",
-    cursor: "pointer",
-    fontWeight: "500",
-  },
-  watchLink: {
-    color: "#a5b4fc",
-    textDecoration: "none",
-    fontSize: "0.9rem",
-  },
-  footer: {
-    textAlign: "center",
-    padding: "25px",
-    fontSize: "0.85rem",
-    color: "#64748b",
-    borderTop: "1px solid rgba(255,255,255,0.15)",
-    marginTop: "80px",
-  },
+  pageWrap: { display: "flex", minHeight: "100vh", background: "#0f172a", color: "#e6eef8" },
+  sidebar: { width: 240, padding: 20, background: "rgba(255,255,255,0.04)", borderRight: "1px solid rgba(255,255,255,0.08)" },
+  brand: { display: "flex", gap: 10, alignItems: "center" },
+  brandLogo: { width: 42 },
+  brandTitle: { fontWeight: 700, color: "#c7d2fe" },
+  roleSmall: { fontSize: 12, color: "#94a3b8" },
+  sideNav: { marginTop: 20, display: "flex", flexDirection: "column", gap: 8 },
+  activeSideLink: { background: "rgba(99,102,241,0.12)", color: "#e6e9ff", padding: "8px 10px", borderRadius: 6 },
+  sideLink: { padding: "8px 10px", color: "#cbd5e1" },
+  sidebarFooter: { marginTop: "auto", fontSize: 13, color: "#94a3b8" },
+  sidebarName: { marginTop: 4, fontWeight: 700 },
+  main: { flex: 1, padding: 24 },
+  topbar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  welcomeTitle: { fontSize: 20, fontWeight: 700 },
+  mentorName: { color: "#c7d2fe" },
+  welcomeSub: { fontSize: 13, color: "#9aa9c7" },
+  topbarRight: { display: "flex", alignItems: "center", gap: 10 },
+  verifiedBadge: { background: "rgba(99,102,241,0.15)", color: "#c7d2fe", padding: "6px 10px", borderRadius: 999 },
+  notVerifiedBadge: { background: "rgba(239,68,68,0.12)", color: "#fca5a5", padding: "6px 10px", borderRadius: 999 },
+  topLogoutBtn: { background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#cbd5e1", padding: "8px 12px", borderRadius: 8, cursor: "pointer" },
+  section: { background: "rgba(255,255,255,0.02)", padding: 18, borderRadius: 12, marginBottom: 16 },
+  sectionTitle: { fontSize: 16, fontWeight: 700, marginBottom: 12 },
+  coursesList: { display: "flex", flexDirection: "column", gap: 10 },
+  courseRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.03)" },
+  courseLeft: { display: "flex", gap: 12, alignItems: "center" },
+  courseThumbWrap: { width: 80, height: 60, borderRadius: 8, overflow: "hidden" },
+  courseThumb: { width: "100%", height: "100%", objectFit: "cover" },
+  courseTitle: { fontWeight: 700, fontSize: 15 },
+  courseMeta: { fontSize: 13, color: "#9aa9c7" },
+  courseActions: { display: "flex", gap: 8 },
+  primaryBtn: { background: "linear-gradient(90deg,#6366f1,#8b5cf6)", color: "#fff", padding: "8px 14px", border: "none", borderRadius: 8, cursor: "pointer" },
+  primaryBtnDisabled: { background: "rgba(255,255,255,0.03)", color: "#9aa9c7", padding: "8px 14px", borderRadius: 8 },
+  viewBtn: { background: "rgba(255,255,255,0.05)", color: "#cbd5e1", padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer" },
+  modalBackdrop: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", backdropFilter: "blur(10px)" },
+  modalBox: { background: "rgba(30,41,59,0.9)", border: "1px solid rgba(129,140,248,0.3)", padding: "30px 40px", borderRadius: "15px", textAlign: "center", width: "400px" },
+  modalBtn: { marginTop: "20px", background: "#6366f1", color: "#fff", border: "none", padding: "8px 20px", borderRadius: "10px", cursor: "pointer" },
+  toast: { position: "fixed", right: 20, bottom: 20, background: "rgba(15,23,42,0.95)", color: "#e6eef8", padding: "10px 14px", borderRadius: 8, display: "flex", gap: 12 },
+  toastClose: { background: "transparent", color: "#cbd5e1", border: "none", cursor: "pointer" },
+  loadingWrap: { minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" },
 };

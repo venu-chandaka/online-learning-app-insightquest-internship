@@ -23,7 +23,16 @@ export default function MentorDashboard() {
     type: "video",
     contentUrl: "",
   });
-
+   const [quizForm, setQuizForm] = useState({
+      courseId: "",
+      passingMarks: "",
+      questions: [],
+    });
+    const [currentQuestion, setCurrentQuestion] = useState({
+      questionText: "",
+      options: ["", "", "", ""],
+      correctAnswer: "",
+    });
   // modal / alerts
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [infoMessage, setInfoMessage] = useState("");
@@ -193,6 +202,48 @@ export default function MentorDashboard() {
       setInfoMessage(err?.response?.data?.message || "Failed to update course");
     }
   };
+  // ✅ Quiz logic
+  const addQuestionToList = () => {
+    if (
+      !currentQuestion.questionText ||
+      currentQuestion.options.some((o) => !o) ||
+      !currentQuestion.correctAnswer
+    )
+      return setInfoMessage("Please fill all question fields");
+
+    setQuizForm((prev) => ({
+      ...prev,
+      questions: [...prev.questions, currentQuestion],
+    }));
+    setCurrentQuestion({
+      questionText: "",
+      options: ["", "", "", ""],
+      correctAnswer: "",
+    });
+    setInfoMessage("Question added");
+  };
+   const uploadQuiz = async () => {
+    if (!mentor?.isAccountVerified) return setShowVerifyModal(true);
+    if (!quizForm.courseId || quizForm.questions.length === 0)
+      return setInfoMessage("Add at least one question");
+
+    try {
+      const res = await axios.post(
+        "http://localhost:4000/api/quiz/create",
+        quizForm,
+        { withCredentials: true }
+      );
+      if (res.data.success) {
+        setInfoMessage("Quiz uploaded successfully!");
+        setQuizForm({ courseId: "", passingMarks: "", questions: [] });
+      } else {
+        setInfoMessage("Failed to upload quiz");
+      }
+    } catch (err) {
+      console.error(err);
+      setInfoMessage("Quiz upload error");
+    }
+  };
 
   if (loading) {
     return (
@@ -351,6 +402,109 @@ export default function MentorDashboard() {
             </div>
           </div>
         </section>
+      <section style={styles.section}>
+  <h3 style={styles.sectionTitle}>Add Quiz</h3>
+  <div style={styles.formRow}>
+    <select
+      style={styles.input}
+      value={quizForm.courseId}
+      onChange={e =>
+        setQuizForm(prev => ({
+          ...prev,
+          courseId: e.target.value
+        }))
+      }
+    >
+      <option value="">Select Course</option>
+      {courses.map(c => (
+        <option key={c._id} value={c._id}>{c.title}</option>
+      ))}
+    </select>
+    <input
+      style={styles.input}
+      type="number"
+      placeholder="Passing Marks"
+      value={quizForm.passingMarks}
+      onChange={e => setQuizForm(prev => ({
+        ...prev,
+        passingMarks: e.target.value
+      }))}
+    />
+  </div>
+
+  <div style={styles.formRow}>
+    <input
+      style={styles.input}
+      placeholder="Question Text"
+      value={currentQuestion.questionText}
+      onChange={e => setCurrentQuestion(prev => ({
+        ...prev,
+        questionText: e.target.value
+      }))}
+    />
+  </div>
+  <div style={styles.formRow}>
+    {currentQuestion.options.map((opt, i) => (
+      <input
+        key={i}
+        style={styles.input}
+        placeholder={`Option ${i + 1}`}
+        value={opt}
+        onChange={e => {
+          const opts = [...currentQuestion.options];
+          opts[i] = e.target.value;
+          setCurrentQuestion(prev => ({ ...prev, options: opts }));
+        }}
+      />
+    ))}
+  </div>
+  <div style={styles.formRow}>
+    <input
+      style={styles.input}
+      placeholder="Correct Answer"
+      value={currentQuestion.correctAnswer}
+      onChange={e => setCurrentQuestion(prev => ({
+        ...prev,
+        correctAnswer: e.target.value
+      }))}
+    />
+    <button style={styles.primaryBtn} onClick={addQuestionToList}>
+      + Add Question
+    </button>
+  </div>
+
+  {quizForm.questions.length > 0 && (
+    <div
+      style={{
+        marginTop: 14,
+        background: "rgba(255,255,255,0.03)",
+        padding: 10,
+        borderRadius: 8,
+      }}
+    >
+      <strong>Questions Added:</strong>
+      <ul style={{ color: "#cbd5e1" }}>
+        {quizForm.questions.map((q, i) => (
+          <li key={i}>
+            {i + 1}. {q.questionText} ({q.correctAnswer})
+          </li>
+        ))}
+      </ul>
+    </div>
+  )}
+
+  <div style={styles.formRow}>
+    <button style={mentor?.isAccountVerified ? styles.primaryBtn : styles.primaryBtnDisabled} onClick={uploadQuiz}>
+      🚀 Upload Quiz
+    </button>
+    {!mentor?.isAccountVerified &&
+      <button onClick={() => setShowVerifyModal(true)} style={styles.secondaryBtn}>
+        Why blocked?
+      </button>
+    }
+  </div>
+</section>
+
         {/* Mentor's Courses List */}
           {/* Mentor's Courses List */}
 <section style={styles.section}>
@@ -419,7 +573,7 @@ export default function MentorDashboard() {
 
             <button
               style={styles.viewBtn}
-              onClick={() => window.location.href = `/course/${course._id}`}
+              onClick={() => window.location.href = `../course/${course._id}`}
             >
               View
             </button>
@@ -429,7 +583,7 @@ export default function MentorDashboard() {
     </div>
   )}
 </section>
-
+     
 
       </main>
       {/* Verification Modal */}
@@ -462,10 +616,6 @@ export default function MentorDashboard() {
     </div>
   );
 }
-
-/* -------------------------
-   Internal CSS (same as before)
-   ------------------------- */
 const styles = {
   pageWrap: {
     display: "flex",

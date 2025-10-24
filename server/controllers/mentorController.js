@@ -67,7 +67,6 @@ export const getMentorStudents = async (req, res) => {
     // Find all courses created by this mentor
     const courses = await CourseModel.find({ instructor: mentorId }).populate("enrolledStudents", "name email");
     const students = courses.flatMap((course) => course.enrolledStudents);
-
     res.json({ success: true, students });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
